@@ -1,23 +1,23 @@
+# vim:ts=2:sw=2:et
+
 module FuzzySearch
   
   def self.included(model)
     model.extend ClassMethods
     model.extend WordNormalizerClassMethod unless model.respond_to? "normalize"
-    model.send "after", :save, :fuzzy_after_save
+    model.send :after_save, :extract_trigrams!
   end
 
-  def fuzzy_after_save
-    fuzzy_ref_id = self.class.instance_variable_get(:@fuzzy_ref_id)
-    trigram_type = self.class.instance_variable_get(:@fuzzy_trigram_type)
-    
-    #DM activerecord can use a delete method with conditions
-    trigram_type.send(:all, fuzzy_ref_id => id).send("destroy!")#each{ |t| t.destroy }
+  def extract_trigrams!
+    trigram_type = self.class.fuzzy_trigram_type
+    trigram_type.send(:delete_all, ["#{self.class.fuzzy_ref_id} = ?", id])
+
     # to avoid double entries
     used_tokens = []
-    self.class.instance_variable_get(:@fuzzy_props).each do |prop|
+    self.class.fuzzy_props.each do |prop|
       # split the property into words (which are separated by whitespaces)
       # and generate the trigrams for each word
-      attribute_get(prop).to_s.split.each do |p|
+      send(prop).to_s.split.each do |p|
         # put a space in front and at the end to emphasize the endings
         word = ' ' + self.class.normalize(p) + ' '
         # tokenize the word and put each token in the database
@@ -26,7 +26,7 @@ module FuzzySearch
         (0..word.length - 3).each do |idx|
           token = word[idx, 3]
           unless used_tokens.member? token
-            trigram_type.send(:create, :token => token, fuzzy_ref_id => id)
+            trigram_type.send(:create, :token => token, self.class.fuzzy_ref_id => id)
             used_tokens << token
           end
         end
@@ -41,25 +41,24 @@ module FuzzySearch
   module ClassMethods
 
     def self.extended(model)
-      @@model = model
+      model.class_eval do
+        cattr_accessor :fuzzy_ref
+        self.fuzzy_ref = model.name.downcase
+      end
     end
 
+    def fuzzy_ref_id; (fuzzy_ref + "_id").to_sym; end
+    def fuzzy_ref_type_symbol; fuzzy_ref.gsub(/\/(.?)/) { "::#{$1.upcase}" }.gsub(/(?:^|_)(.)/) { $1.upcase }.to_sym; end
+    def fuzzy_ref_type; Kernel::const_get(fuzzy_ref_type_symbol); end
+    def fuzzy_ref_table; fuzzy_ref.pluralize; end
+    def fuzzy_trigram_type_symbol; (fuzzy_ref_type.to_s + "Trigram").gsub(/\/(.?)/) { "::#{$1.upcase}" }.gsub(/(?:^|_)(.)/) { $1.upcase }.to_sym; end
+    def fuzzy_trigram_type; Kernel::const_get(fuzzy_trigram_type_symbol); end
+    
     def fuzzy_search_attributes(*properties)
-      # setup all the parameters which a needed later
-      fuzzy_ref = @@model.name.downcase
-      fuzzy_ref_id = (fuzzy_ref + "_id").to_sym
-      fuzzy_ref_type_symbol = fuzzy_ref.gsub(/\/(.?)/) { "::#{$1.upcase}" }.gsub(/(?:^|_)(.)/) { $1.upcase }.to_sym
-      fuzzy_ref_type = Kernel::const_get(fuzzy_ref_type_symbol)
-      fuzzy_trigram_type_symbol = (fuzzy_ref_type.to_s + "Trigram").gsub(/\/(.?)/) { "::#{$1.upcase}" }.gsub(/(?:^|_)(.)/) { $1.upcase }.to_sym
-      fuzzy_trigram_type = Kernel::const_get(fuzzy_trigram_type_symbol)
-
-      # put the parameters as instance variable of the model
-      @@model.instance_variable_set(:@fuzzy_ref, fuzzy_ref.to_sym)
-      @@model.instance_variable_set(:@fuzzy_ref_id, fuzzy_ref_id)
-      @@model.instance_variable_set(:@fuzzy_ref_type, fuzzy_ref_type)
-      @@model.instance_variable_set(:@fuzzy_props, properties)
-      @@model.instance_variable_set(:@fuzzy_trigram_type, fuzzy_trigram_type)
-
+      cattr_accessor :fuzzy_props
+      self.fuzzy_props = properties
+      cattr_accessor :fuzzy_threshold
+      self.fuzzy_threshold = 5
     end
 
     def fuzzy_find(words)
@@ -76,35 +75,14 @@ module FuzzySearch
         
         conditions = ""
         bind_values = []
-        if(paranoid_properties.size > 0)
-          paranoid_properties.each do |k,v|
-            if send(k).type == DataMapper::Types::ParanoidBoolean 
-              conditions += " and #{k} = ?"
-              bind_values << false
-            else
-              conditions += " and #{k} is null"
-            end
-          end
-        end
+       
+        fuzzy_props_size = fuzzy_props.size
         
-        fuzzy_ref = instance_variable_get(:@fuzzy_ref)
-        fuzzy_ref_id = instance_variable_get(:@fuzzy_ref_id)
-        fuzzy_ref_type = instance_variable_get(:@fuzzy_ref_type)
-        fuzzy_trigram_type = instance_variable_get(:@fuzzy_trigram_type)
-        fuzzy_props_size = instance_variable_get(:@fuzzy_props).size
-        
-        query = if true 
-                  "SELECT count(*) count, #{fuzzy_ref_id} FROM #{fuzzy_ref}_trigrams, #{fuzzy_ref.to_s.plural} fuzzy_ref WHERE token in ? and #{fuzzy_ref_id} = fuzzy_ref.id #{conditions} group by #{fuzzy_ref_id} order by count desc"
-                else
-                  #DM : will not work with activerecord like this
-                  "SELECT count(*) count, #{fuzzy_ref_id} FROM #{fuzzy_ref}_trigrams WHERE token in ? group by #{fuzzy_ref_id} order by count desc"
-                end
-        repository.adapter.query(query, trigrams, bind_values).collect do |i|
-            #DM : activerecord needs a find method instead
-          ref = fuzzy_ref_type.send("get!", i.send(fuzzy_ref_id)) 
+        results = find_by_sql(["SELECT count(*) count, fuzzy_ref.* FROM #{fuzzy_ref}_trigrams, #{fuzzy_ref_table} fuzzy_ref WHERE token IN (?) AND #{fuzzy_ref_id} = fuzzy_ref.id #{conditions} GROUP BY #{fuzzy_ref_id} ORDER BY count DESC", trigrams])
 
+        logger.info "fuzzy_find query found #{results.size} results"
+        annotated_results = results.collect do |ref|
           # put a weight on each instance for display purpose
-          # TODO maybe there is a better name instead of weight
           def ref.fuzzy_weight=(w)
             @weight = w
           end
@@ -114,10 +92,16 @@ module FuzzySearch
           
           # if there are no double entries then
           # i.count <= trigrams.size and i.count <= 'type'Trigrams.count
-          ref.fuzzy_weight = ((i.count * 100)/trigrams.size +
-            (i.count * 100)/fuzzy_trigram_type.send("count", fuzzy_ref_id => ref.id))/2
+          ref.fuzzy_weight = ((ref.count.to_i * 100)/trigrams.size +
+            (ref.count.to_i * 100)/fuzzy_trigram_type.send("count", :conditions => {fuzzy_ref_id => ref.id}))/2
+          logger.info "weight: #{ref.fuzzy_weight}"
           ref
         end
+
+        # Remove the results that are too "far off" what the user intended
+        annotated_results.delete_if {|result| result.fuzzy_weight < fuzzy_threshold}
+
+        annotated_results
       end
     end
   end
