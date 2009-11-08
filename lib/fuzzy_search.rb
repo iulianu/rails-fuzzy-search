@@ -15,9 +15,11 @@ module FuzzySearch
     # to avoid double entries
     used_tokens = []
     self.class.fuzzy_props.each do |prop|
+      prop_value = send(prop)
+      next if prop_value.nil?
       # split the property into words (which are separated by whitespaces)
       # and generate the trigrams for each word
-      send(prop).to_s.split.each do |p|
+      prop_value.to_s.split.each do |p|
         # put a space in front and at the end to emphasize the endings
         word = ' ' + self.class.normalize(p) + ' '
         # tokenize the word and put each token in the database
