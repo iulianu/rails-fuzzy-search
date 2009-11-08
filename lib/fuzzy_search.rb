@@ -74,12 +74,17 @@ module FuzzySearch
           trigrams << (0..word.length-3).collect {|idx| word[idx,3]}
         end
         trigrams = trigrams.flatten.uniq
+
+        # Transform the list of columns in the searchable entity into 
+        # a SQL fragment like:
+        # "fuzzy_ref.id, fuzzy_ref.field1, fuzzy_ref.field2, ..."
+        entity_fields = columns.map {|col| "fuzzy_ref." + col.name}.join(", ")
         
         results = find( :all, 
-                        :select => "count(*) AS count, fuzzy_ref.*",
+                        :select => "count(*) AS count, #{entity_fields}",
                         :from => "#{fuzzy_ref}_trigrams, #{fuzzy_ref_table} fuzzy_ref",
                         :conditions => ["token IN (?) AND #{fuzzy_ref_id} = fuzzy_ref.id", trigrams],
-                        :group => fuzzy_ref_id,
+                        :group => entity_fields,
                         :order => "count DESC" )
 
         logger.info "fuzzy_find query found #{results.size} results"
