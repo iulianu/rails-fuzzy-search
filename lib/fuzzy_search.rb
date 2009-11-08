@@ -73,12 +73,12 @@ module FuzzySearch
         end
         trigrams = trigrams.flatten.uniq
         
-        conditions = ""
-        bind_values = []
-       
-        fuzzy_props_size = fuzzy_props.size
-        
-        results = find_by_sql(["SELECT count(*) count, fuzzy_ref.* FROM #{fuzzy_ref}_trigrams, #{fuzzy_ref_table} fuzzy_ref WHERE token IN (?) AND #{fuzzy_ref_id} = fuzzy_ref.id #{conditions} GROUP BY #{fuzzy_ref_id} ORDER BY count DESC", trigrams])
+        results = find( :all, 
+                        :select => "count(*) AS count, fuzzy_ref.*",
+                        :from => "#{fuzzy_ref}_trigrams, #{fuzzy_ref_table} fuzzy_ref",
+                        :conditions => ["token IN (?) AND #{fuzzy_ref_id} = fuzzy_ref.id", trigrams],
+                        :group => fuzzy_ref_id,
+                        :order => "count DESC" )
 
         logger.info "fuzzy_find query found #{results.size} results"
         annotated_results = results.collect do |ref|
