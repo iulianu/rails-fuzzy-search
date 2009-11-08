@@ -1,0 +1,88 @@
+FuzzySearch
+===========
+
+this plugin is inspired by the following blog entry
+http://unirec.blogspot.com/2007/12/live-fuzzy-search-using-n-grams-in.html
+it can add a fuzzy search to model. this search needs another table where all the
+trigrams are stored but that table is hidden otherwise.
+
+the whole plugins does not work with ActiveRecords, but for Datamapper !! to get it to work
+for ActiveRecord only a few code places need to be changed, I marked the in the code #DM.
+
+configuration
+=============
+
+add the following in the model class
+
+  include FuzzySearch
+
+  fuzzy_search_attributes :property1, :property1
+  
+where :property1, :property2 are the properties which are index for the fuzzy search. each property gets split into words (separator is the whitespaces)
+
+if you define a methods returning a string
+
+  def self.normalize(word)
+
+before include the FuzzySearch than this method gets used to normlize any word. default is to downcast 
+the string (which does only work properly within ascii)
+
+trigrams table
+==============
+
+the naming follows the convention
+
+class <model_classname>Trigram
+
+  property :id, Integer, :serial => true
+
+  property :<model_lowercase>_id, Integer, :index => true
+
+  property :token, String, :nullable => false, :length => 3, :index => true
+
+end
+
+example
+=======
+
+class UserTrigram
+
+  include DataMapper::Resource
+
+  property :id, Integer, :serial => true
+
+  property :user_id, Integer, :index => true
+
+  property :token, String, :nullable => false, :length => 3, :index => true
+
+end
+
+the model class looks like this
+
+class User
+
+  include DataMapper::Resource
+
+  def self.normalize(word)
+     #TODO something
+     word.downcase
+  end
+
+  include FuzzySearch
+
+  fuzzy_search_attributes :firstname, :surname
+  
+  property :id, Integer, :serial => true
+
+  property :surname, String, :nullable => false , :format => /^[^<'&">]*$/, :length => 32
+  property :firstname, String, :nullable => false , :format => /^[^<'&">]*$/, :length => 32
+
+end
+
+now you can create users and search them in a fuzzy manner like
+
+  User.fuzzy_find("Heywy")
+
+enjoy !!
+
+Copyright (c) 2008 kristian, released under the MIT license
