@@ -71,7 +71,8 @@ module FuzzySearch
         trigrams = []
         words.each do |w|
           word = ' ' + normalize(w) + ' '
-          trigrams << (0..word.length-3).collect {|idx| word[idx,3]}
+          word_as_chars = word.mb_chars
+          trigrams << (0..word_as_chars.length-3).collect {|idx| word_as_chars[idx,3].to_s}
         end
         trigrams = trigrams.flatten.uniq
 
