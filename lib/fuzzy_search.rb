@@ -25,8 +25,9 @@ module FuzzySearch
         # tokenize the word and put each token in the database
         # and allow double token (without doubles the metric is 
         # slightly different)
-        (0..word.length - 3).each do |idx|
-          token = word[idx, 3]
+        word_as_chars = word.mb_chars
+        (0..word_as_chars.length - 3).each do |idx|
+          token = word_as_chars[idx, 3].to_s
           unless used_tokens.member? token
             trigram_type.send(:create, :token => token, self.class.fuzzy_ref_id => id)
             used_tokens << token
