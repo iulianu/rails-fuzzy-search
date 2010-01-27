@@ -1,88 +1,49 @@
 FuzzySearch
 ===========
+Search through your models while tolerating slight mis-spellings. If you have a Person in your database named O'Reilly, you want your users to be able to find it even if they type "OReilly" or "O'Rielly".
 
-this plugin is inspired by the following blog entry
-http://unirec.blogspot.com/2007/12/live-fuzzy-search-using-n-grams-in.html
-it can add a fuzzy search to model. this search needs another table where all the
-trigrams are stored but that table is hidden otherwise.
-
-the whole plugins does not work with ActiveRecords, but for Datamapper !! to get it to work
-for ActiveRecord only a few code places need to be changed, I marked the in the code #DM.
-
-configuration
-=============
-
-add the following in the model class
-
-  include FuzzySearch
-
-  fuzzy_search_attributes :property1, :property1
-  
-where :property1, :property2 are the properties which are index for the fuzzy search. each property gets split into words (separator is the whitespaces)
-
-if you define a methods returning a string
-
-  def self.normalize(word)
-
-before include the FuzzySearch than this method gets used to normlize any word. default is to downcast 
-the string (which does only work properly within ascii)
-
-trigrams table
-==============
-
-the naming follows the convention
-
-class <model_classname>Trigram
-
-  property :id, Integer, :serial => true
-
-  property :<model_lowercase>_id, Integer, :index => true
-
-  property :token, String, :nullable => false, :length => 3, :index => true
-
-end
-
-example
+Example
 =======
 
-class UserTrigram
-
-  include DataMapper::Resource
-
-  property :id, Integer, :serial => true
-
-  property :user_id, Integer, :index => true
-
-  property :token, String, :nullable => false, :length => 3, :index => true
-
+class Person < ActiveRecord::Base
+  # ...
+  include FuzzySearch
+  fuzzy_search_attributes :name, :surname
+  # ...
 end
 
-the model class looks like this
+people = Person.fuzzy_find "OReilly"
 
-class User
+# Fuzzy find works on scopes too. This includes named_scopes.
+people = Person.scoped({:conditions => ["state='active'"]}).fuzzy_find("OReilly")
 
-  include DataMapper::Resource
+
+If you define a methods returning a string
 
   def self.normalize(word)
-     #TODO something
-     word.downcase
+
+before include the FuzzySearch than this method gets used to normlize any word. default is to downcase the string (which does only work properly within ascii)
+
+Trigrams table
+==============
+
+For each model that you want to fuzzy-search, you have to define a Trigram model and table, using the following example:
+
+  create_table "person_trigrams", :force => true do |t|
+    t.integer "person_id"
+    t.string  "token",   :null => false
   end
 
-  include FuzzySearch
+  # The PersonTrigram model itself
+  class PersonTrigram < ActiveRecord::Base
+  end
 
-  fuzzy_search_attributes :firstname, :surname
-  
-  property :id, Integer, :serial => true
+==Licence and credits==
+This plugin is inspired by the following blog entry
+http://unirec.blogspot.com/2007/12/live-fuzzy-search-using-n-grams-in.html
 
-  property :surname, String, :nullable => false , :format => /^[^<'&">]*$/, :length => 32
-  property :firstname, String, :nullable => false , :format => /^[^<'&">]*$/, :length => 32
+The code is based off the act_as_fuzzy_search plugin for DataMapper
+by mkristian (http://github.com/mkristian/kristians_rails_plugins).
 
-end
+This plugin is available under the MIT Licence.
 
-now you can create users and search them in a fuzzy manner like
-
-  User.fuzzy_find("Heywy")
-
-enjoy !!
-
-Copyright (c) 2008 kristian, released under the MIT license
