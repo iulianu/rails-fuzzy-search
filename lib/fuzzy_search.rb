@@ -86,7 +86,7 @@ module FuzzySearch
         
         results = find( :all, 
                         :select => "count(*) AS count, #{entity_fields}",
-                        :include => [:"#{fuzzy_ref}_trigrams"],
+                        :joins => ["LEFT OUTER JOIN #{fuzzy_ref}_trigrams ON #{fuzzy_ref}_trigrams.#{fuzzy_ref}_id = #{fuzzy_ref_table}.id"],
                         :conditions => ["#{fuzzy_ref}_trigrams.token IN (?)", trigrams],
                         :group => entity_fields,
                         :order => "count DESC" )
