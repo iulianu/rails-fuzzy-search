@@ -47,6 +47,7 @@ module FuzzySearch
       model.class_eval do
         cattr_accessor :fuzzy_ref
         self.fuzzy_ref = model.name.downcase
+        has_many fuzzy_trigram_type_symbol.to_s.tableize.to_sym
       end
     end
 
@@ -80,12 +81,13 @@ module FuzzySearch
         # Transform the list of columns in the searchable entity into 
         # a SQL fragment like:
         # "fuzzy_ref.id, fuzzy_ref.field1, fuzzy_ref.field2, ..."
-        entity_fields = columns.map {|col| "fuzzy_ref." + col.name}.join(", ")
+        #entity_fields = columns.map {|col| "fuzzy_ref." + col.name}.join(", ")
+        entity_fields = columns.map {|col| fuzzy_ref_table + "." + col.name}.join(", ")
         
         results = find( :all, 
                         :select => "count(*) AS count, #{entity_fields}",
-                        :from => "#{fuzzy_ref}_trigrams, #{fuzzy_ref_table} fuzzy_ref",
-                        :conditions => ["token IN (?) AND #{fuzzy_ref_id} = fuzzy_ref.id", trigrams],
+                        :include => [:"#{fuzzy_ref}_trigrams"],
+                        :conditions => ["#{fuzzy_ref}_trigrams.token IN (?)", trigrams],
                         :group => entity_fields,
                         :order => "count DESC" )
 

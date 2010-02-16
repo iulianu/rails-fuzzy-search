@@ -2,6 +2,12 @@ FuzzySearch
 ===========
 Search through your models while tolerating slight mis-spellings. If you have a Person in your database named O'Reilly, you want your users to be able to find it even if they type "OReilly" or "O'Rielly".
 
+Installation
+============
+NOTE! The following plugin is a prerequisite:
+  script/plugin install git://github.com/blythedunham/eload-select.git
+More details at http://www.snowgiraffe.com/tech/329/eager-loading-select-plugin-when-select-plays-nice-with-include/
+
 Example
 =======
 
