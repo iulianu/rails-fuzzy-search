@@ -19,7 +19,7 @@ module FuzzySearch
       next if prop_value.nil?
       # split the property into words (which are separated by whitespaces)
       # and generate the trigrams for each word
-      prop_value.to_s.split.each do |p|
+      prop_value.to_s.split(/[\s\-]+/).each do |p|
         # put a space in front and at the end to emphasize the endings
         word = ' ' + self.class.normalize(p) + ' '
         # tokenize the word and put each token in the database
@@ -68,7 +68,7 @@ module FuzzySearch
     def fuzzy_find(words)
       unless words.instance_of? Array
         # split the words on whitespaces and redo the find with that array
-        fuzzy_find(words.to_s.split)
+        fuzzy_find(words.to_s.split(/[\s\-]+/))
       else 
         trigrams = []
         words.each do |w|
