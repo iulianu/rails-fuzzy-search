@@ -46,7 +46,7 @@ module FuzzySearch
     def self.extended(model)
       model.class_eval do
         cattr_accessor :fuzzy_ref
-        self.fuzzy_ref = model.name.downcase
+        self.fuzzy_ref = model.name.underscore
         has_many fuzzy_trigram_type_symbol.to_s.tableize.to_sym
       end
     end
