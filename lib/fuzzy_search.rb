@@ -98,9 +98,9 @@ module FuzzySearch
         :select => "#{fuzzy_weight_expr} AS fuzzy_weight, #{entity_fields}",
         :joins => ["LEFT OUTER JOIN #{fuzzy_ref}_trigrams ON #{fuzzy_ref}_trigrams.#{fuzzy_ref}_id = #{fuzzy_ref_table}.id"],
         :conditions => ["#{fuzzy_ref}_trigrams.token IN (?)", trigrams],
-          :group => entity_fields,
-          :order => "fuzzy_weight DESC",
-          :having => "#{fuzzy_weight_expr} >= #{fuzzy_threshold}"
+        :group => entity_fields,
+        :order => "fuzzy_weight DESC",
+        :having => "#{fuzzy_weight_expr} >= #{fuzzy_threshold}"
       }
     end
   end
