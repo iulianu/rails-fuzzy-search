@@ -1,3 +1,4 @@
+require 'rubygems'
 require 'test/unit'
 require 'dm-validations'
 require 'dm-aggregates'
